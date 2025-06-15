@@ -1,9 +1,36 @@
 import React from 'react';
+import toast, { Toaster as HotToaster } from 'react-hot-toast';
 
 export function Toaster() {
   return (
-    <div className="fixed bottom-4 right-4 z-50">
-      {/* Toast notifications will be rendered here */}
-    </div>
+    <HotToaster
+      position="top-right"
+      toastOptions={{
+        duration: 4000,
+        style: {
+          background: 'var(--theme-background)',
+          color: 'var(--theme-primary)',
+          border: '1px solid var(--theme-accent)',
+          borderRadius: '12px',
+          padding: '16px',
+          fontSize: '14px',
+          fontWeight: '500',
+        },
+        success: {
+          iconTheme: {
+            primary: '#10b981',
+            secondary: '#ffffff',
+          },
+        },
+        error: {
+          iconTheme: {
+            primary: '#ef4444',
+            secondary: '#ffffff',
+          },
+        },
+      }}
+    />
   );
 }
+
+export { toast };

@@ -10,6 +10,7 @@ import Sidebar from "./components/layout/Sidebar";
 import MobileHeader from "./components/layout/MobileHeader";
 import MobileNav from "./components/layout/MobileNav";
 import PatternOverlay from "./components/layout/PatternOverlay";
+import { motion, AnimatePresence } from "framer-motion";
 
 // Pages
 import HomePage from "./pages/home";
@@ -28,28 +29,63 @@ const Events = lazy(() => import("./pages/Events"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Explore = lazy(() => import("./pages/Explore"));
 
-function Router() {
+function LoadingSpinner() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
-      </div>
-    }>
-      <Switch>
-        <ProtectedRoute path="/" component={HomePage} />
-        <Route path="/auth" component={AuthPage} />
-        <Route path="/verify-email" component={VerifyEmail} />
-        <ProtectedRoute path="/admin" component={AdminPanel} />
-        <ProtectedRoute path="/prayer-times" component={PrayerTimes} />
-        <ProtectedRoute path="/daily-wisdom" component={DailyWisdom} />
-        <ProtectedRoute path="/quran-hadith" component={QuranHadith} />
-        <ProtectedRoute path="/dua-requests" component={DuaRequests} />
-        <ProtectedRoute path="/communities" component={Communities} />
-        <ProtectedRoute path="/events" component={Events} />
-        <ProtectedRoute path="/profile/:id?" component={Profile} />
-        <ProtectedRoute path="/explore" component={Explore} />
-        <Route component={NotFound} />
-      </Switch>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-amber-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.5 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5 }}
+        className="text-center"
+      >
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+          className="w-16 h-16 border-4 border-emerald-200 border-t-emerald-600 rounded-full mx-auto mb-4"
+        />
+        <motion.p
+          initial={{ y: 10, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="text-emerald-600 dark:text-emerald-400 font-medium"
+        >
+          Yükleniyor...
+        </motion.p>
+      </motion.div>
+    </div>
+  );
+}
+
+function Router() {
+  const [location] = useLocation();
+
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={location}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ duration: 0.3 }}
+        >
+          <Switch>
+            <ProtectedRoute path="/" component={HomePage} />
+            <Route path="/auth" component={AuthPage} />
+            <Route path="/verify-email" component={VerifyEmail} />
+            <ProtectedRoute path="/admin" component={AdminPanel} />
+            <ProtectedRoute path="/prayer-times" component={PrayerTimes} />
+            <ProtectedRoute path="/daily-wisdom" component={DailyWisdom} />
+            <ProtectedRoute path="/quran-hadith" component={QuranHadith} />
+            <ProtectedRoute path="/dua-requests" component={DuaRequests} />
+            <ProtectedRoute path="/communities" component={Communities} />
+            <ProtectedRoute path="/events" component={Events} />
+            <ProtectedRoute path="/profile/:id?" component={Profile} />
+            <ProtectedRoute path="/explore" component={Explore} />
+            <Route component={NotFound} />
+          </Switch>
+        </motion.div>
+      </AnimatePresence>
     </Suspense>
   );
 }
@@ -61,18 +97,23 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <ThemeProvider defaultTheme="islamic-navy" storageKey="theme-mode">
+        <ThemeProvider defaultTheme="islamic-green" storageKey="theme-mode">
           {isAuthPage ? (
             <Router />
           ) : (
-            <div className="min-h-screen bg-background relative">
+            <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-emerald-50 dark:from-gray-900 dark:via-gray-800 dark:to-emerald-900 relative transition-colors duration-300">
               <PatternOverlay />
               <Sidebar />
               <MobileHeader />
-              <main className="lg:ml-64 pb-20 lg:pb-10 relative z-10">
-                <div className="container mx-auto px-4 py-6">
+              <main className="lg:ml-72 pb-20 lg:pb-10 relative z-10">
+                <motion.div 
+                  className="container mx-auto px-4 py-6"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.5 }}
+                >
                   <Router />
-                </div>
+                </motion.div>
               </main>
               <MobileNav />
             </div>

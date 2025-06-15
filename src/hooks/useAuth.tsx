@@ -1,101 +1,183 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  avatar?: string;
-  role: 'user' | 'admin';
-  isVerified: boolean;
-}
+import { supabase } from '../lib/supabase';
+import { User as SupabaseUser } from '@supabase/supabase-js';
+import { User } from '../lib/supabase';
+import { toast } from '../components/ui/toaster';
 
 interface AuthContextType {
   user: User | null;
+  loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
-  logout: () => void;
-  isLoading: boolean;
+  register: (email: string, password: string, name: string, username: string) => Promise<void>;
+  logout: () => Promise<void>;
+  updateProfile: (updates: Partial<User>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored auth token
-    const token = localStorage.getItem('auth_token');
-    const userData = localStorage.getItem('user_data');
-    
-    if (token && userData) {
-      try {
-        setUser(JSON.parse(userData));
-      } catch (error) {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('user_data');
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        fetchUserProfile(session.user);
+      } else {
+        setLoading(false);
       }
-    }
-    setIsLoading(false);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user) {
+          await fetchUserProfile(session.user);
+        } else {
+          setUser(null);
+          setLoading(false);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
   }, []);
 
+  const fetchUserProfile = async (authUser: SupabaseUser) => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', authUser.id)
+        .single();
+
+      if (error) {
+        // If user doesn't exist in profiles table, create one
+        if (error.code === 'PGRST116') {
+          const newUser: Partial<User> = {
+            id: authUser.id,
+            email: authUser.email!,
+            name: authUser.user_metadata?.name || authUser.email!.split('@')[0],
+            username: authUser.user_metadata?.username || authUser.email!.split('@')[0],
+            verified: false,
+            role: 'user',
+          };
+
+          const { data: createdUser, error: createError } = await supabase
+            .from('users')
+            .insert([newUser])
+            .select()
+            .single();
+
+          if (createError) throw createError;
+          setUser(createdUser);
+        } else {
+          throw error;
+        }
+      } else {
+        setUser(data);
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      toast.error('Kullanıcı profili yüklenirken hata oluştu');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const login = async (email: string, password: string) => {
-    setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock user data
-      const userData: User = {
-        id: '1',
+      setLoading(true);
+      const { error } = await supabase.auth.signInWithPassword({
         email,
-        name: email.split('@')[0],
-        role: email === 'admin@islamic.com' ? 'admin' : 'user',
-        isVerified: true
-      };
-      
-      localStorage.setItem('auth_token', 'mock_token');
-      localStorage.setItem('user_data', JSON.stringify(userData));
-      setUser(userData);
-    } catch (error) {
-      throw new Error('Giriş başarısız');
+        password,
+      });
+
+      if (error) throw error;
+      toast.success('Başarıyla giriş yaptınız!');
+    } catch (error: any) {
+      toast.error(error.message || 'Giriş yapılırken hata oluştu');
+      throw error;
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const register = async (email: string, password: string, name: string) => {
-    setIsLoading(true);
+  const register = async (email: string, password: string, name: string, username: string) => {
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      setLoading(true);
       
-      const userData: User = {
-        id: Date.now().toString(),
+      // Check if username is already taken
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('username')
+        .eq('username', username)
+        .single();
+
+      if (existingUser) {
+        throw new Error('Bu kullanıcı adı zaten kullanılıyor');
+      }
+
+      const { error } = await supabase.auth.signUp({
         email,
-        name,
-        role: 'user',
-        isVerified: false
-      };
-      
-      localStorage.setItem('auth_token', 'mock_token');
-      localStorage.setItem('user_data', JSON.stringify(userData));
-      setUser(userData);
-    } catch (error) {
-      throw new Error('Kayıt başarısız');
+        password,
+        options: {
+          data: {
+            name,
+            username,
+          },
+        },
+      });
+
+      if (error) throw error;
+      toast.success('Hesabınız oluşturuldu! E-posta adresinizi doğrulayın.');
+    } catch (error: any) {
+      toast.error(error.message || 'Kayıt olurken hata oluştu');
+      throw error;
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('user_data');
-    setUser(null);
+  const logout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      toast.success('Başarıyla çıkış yaptınız');
+    } catch (error: any) {
+      toast.error(error.message || 'Çıkış yapılırken hata oluştu');
+    }
+  };
+
+  const updateProfile = async (updates: Partial<User>) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update(updates)
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      setUser({ ...user, ...updates });
+      toast.success('Profil güncellendi!');
+    } catch (error: any) {
+      toast.error(error.message || 'Profil güncellenirken hata oluştu');
+      throw error;
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, isLoading }}>
+    <AuthContext.Provider value={{
+      user,
+      loading,
+      login,
+      register,
+      logout,
+      updateProfile,
+    }}>
       {children}
     </AuthContext.Provider>
   );
