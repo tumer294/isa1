@@ -428,7 +428,7 @@ export default function Events() {
               {/* Price */}
               <div className="mb-4">
                 <span className="text-lg font-bold text-gray-900">
-                  {event.price ===   ? 'Ücretsiz' : `₺${event.price}`}
+                  {event.price === 0 ? 'Ücretsiz' : `₺${event.price}`}
                 </span>
               </div>
 
